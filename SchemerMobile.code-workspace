@@ -1,0 +1,14 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.gradle": true,
+      "**/build": true
+    },
+    "java.configuration.updateBuildConfiguration": "automatic"
+  }
+}
