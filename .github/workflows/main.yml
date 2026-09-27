@@ -1,13 +1,9 @@
-name: Build Schemer Mobile
+name: Android Build
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ main, master ]
   pull_request:
-  workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
   build:
@@ -22,37 +18,28 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
-      - name: Install Android SDK 36
+      - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.8.0'
-
-      - name: Build debug APK
-        run: gradle --no-daemon :app:assembleDebug
-
-      - name: Build release APK and AAB
-        run: gradle --no-daemon :app:assembleRelease :app:bundleRelease
+      - name: Build APK and AAB
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug bundleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: schemer-mobile-apk
-          path: app/build/outputs/apk/**/*.apk
-          if-no-files-found: error
+          name: schemer-apk
+          path: app/build/outputs/apk/debug/*.apk
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
-          name: schemer-mobile-aab
-          path: app/build/outputs/bundle/**/*.aab
-          if-no-files-found: error
+          name: schemer-aab
+          path: app/build/outputs/bundle/debug/*.aab
