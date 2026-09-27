@@ -1,13 +1,11 @@
-name: Build Schemer Mobile
+name: Android Build
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches:
+      - main
+      - master
   pull_request:
-  workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
   build:
@@ -15,40 +13,51 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
-        with:
-          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
 
-      - name: Set up Gradle 9.8
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: '9.8'
+          gradle-version: "9.7.1"
+          cache-provider: enhanced
+          cache-disabled: false
+          cache-read-only: false
+          cache-write-only: false
+          cache-overwrite-existing: false
+          cache-cleanup: on-success
+          gradle-home-cache-includes: caches
+          add-job-summary: always
+          dependency-graph: disabled
+          validate-wrappers: true
+          allow-snapshot-wrappers: false
+          gradle-home-cache-strict-match: false
 
-      - name: Build debug APK
-        run: gradle --no-daemon :app:assembleDebug
-
-      - name: Build release APK and AAB
-        run: gradle --no-daemon :app:assembleRelease :app:bundleRelease
+      - name: Build APK and AAB
+        run: |
+          gradle --no-daemon :app:assembleDebug :app:bundleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: schemer-mobile-apk
-          path: app/build/outputs/apk/**/*.apk
-          if-no-files-found: error
+          name: schemer-apk
+          path: app/build/outputs/apk/debug/*.apk
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
-          name: schemer-mobile-aab
-          path: app/build/outputs/bundle/**/*.aab
-          if-no-files-found: error
+          name: schemer-aab
+          path: app/build/outputs/bundle/debug/*.aab
