@@ -1,4 +1,4 @@
-name: Android Build
+name: Schemer Mobile Android Build
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
       - main
       - master
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -29,10 +30,10 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Set up Gradle
+      - name: Set up Gradle 9.8
         uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: "9.7.1"
+          gradle-version: "9.8"
           cache-provider: enhanced
           cache-disabled: false
           cache-read-only: false
@@ -46,37 +47,246 @@ jobs:
           allow-snapshot-wrappers: false
           gradle-home-cache-strict-match: false
 
-      - name: Find Android project
-        id: project
+      - name: Create Android project from Schemer HTML
         shell: bash
         run: |
-          PROJECT_DIR="$(dirname "$(find . -type f -name settings.gradle.kts -print -quit)")"
-          if [ -z "$PROJECT_DIR" ] || [ "$PROJECT_DIR" = "." ] && [ ! -f "./settings.gradle.kts" ]; then
-            echo "settings.gradle.kts not found"
+          set -euo pipefail
+
+          HTML_FILE="$(find . -type f \( -iname 'Schemer.html' -o -iname 'schemer.html' \) \
+            -not -path './.git/*' \
+            -not -path './.android-build/*' \
+            -print -quit)"
+
+          if [ -z "$HTML_FILE" ]; then
+            HTML_FILE="$(find . -type f -iname '*.html' \
+              -not -path './.git/*' \
+              -not -path './.android-build/*' \
+              -print -quit)"
+          fi
+
+          if [ -z "$HTML_FILE" ]; then
+            echo "Geen Schemer.html of ander HTML-bestand gevonden in de repository."
             exit 1
           fi
 
-          if [ ! -d "$PROJECT_DIR/app" ]; then
-            echo "app directory not found in $PROJECT_DIR"
-            exit 1
-          fi
+          echo "HTML gevonden: $HTML_FILE"
 
-          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
-          echo "Android project: $PROJECT_DIR"
+          BUILD_DIR="$GITHUB_WORKSPACE/.android-build"
+          rm -rf "$BUILD_DIR"
+
+          mkdir -p \
+            "$BUILD_DIR/app/src/main/assets" \
+            "$BUILD_DIR/app/src/main/java/com/egon/schemer" \
+            "$BUILD_DIR/app/src/main/res/mipmap-hdpi" \
+            "$BUILD_DIR/app/src/main/res/mipmap-mdpi" \
+            "$BUILD_DIR/app/src/main/res/mipmap-xhdpi" \
+            "$BUILD_DIR/app/src/main/res/mipmap-xxhdpi" \
+            "$BUILD_DIR/app/src/main/res/mipmap-xxxhdpi" \
+            "$BUILD_DIR/app/src/main/res/values"
+
+          cp "$HTML_FILE" "$BUILD_DIR/app/src/main/assets/index.html"
+
+          cat > "$BUILD_DIR/settings.gradle.kts" <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "SchemerMobile"
+          include(":app")
+          EOF
+
+          cat > "$BUILD_DIR/build.gradle.kts" <<'EOF'
+          plugins {
+              id("com.android.application") version "9.4.0" apply false
+          }
+          EOF
+
+          cat > "$BUILD_DIR/gradle.properties" <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF
+
+          cat > "$BUILD_DIR/app/build.gradle.kts" <<'EOF'
+          plugins {
+              id("com.android.application")
+          }
+
+          android {
+              namespace = "com.egon.schemer"
+              compileSdk = 36
+
+              defaultConfig {
+                  applicationId = "com.egon.schemer"
+                  minSdk = 23
+                  targetSdk = 36
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                  }
+              }
+
+              packaging {
+                  resources {
+                      excludes += "/META-INF/{AL2.0,LGPL2.1}"
+                  }
+              }
+          }
+          EOF
+
+          cat > "$BUILD_DIR/app/src/main/res/values/strings.xml" <<'EOF'
+          <resources>
+              <string name="app_name">Schemer</string>
+          </resources>
+          EOF
+
+          cat > "$BUILD_DIR/app/src/main/AndroidManifest.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+
+              <application
+                  android:allowBackup="false"
+                  android:label="@string/app_name"
+                  android:supportsRtl="true"
+                  android:theme="@style/AppTheme">
+                  <activity
+                      android:name=".MainActivity"
+                      android:screenOrientation="landscape"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > "$BUILD_DIR/app/src/main/res/values/styles.xml" <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:windowFullscreen">true</item>
+                  <item name="android:windowActionModeOverlay">true</item>
+                  <item name="android:colorAccent">#000000</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > "$BUILD_DIR/app/src/main/java/com/egon/schemer/MainActivity.java" <<'EOF'
+          package com.egon.schemer;
+
+          import android.app.Activity;
+          import android.content.pm.ActivityInfo;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.view.Window;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+              private WebView webView;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+
+                  getWindow().setFlags(
+                      Window.LayoutParams.FLAG_FULLSCREEN,
+                      Window.LayoutParams.FLAG_FULLSCREEN
+                  );
+
+                  hideSystemUi();
+
+                  webView = new WebView(this);
+                  webView.setWebViewClient(new WebViewClient());
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setDatabaseEnabled(true);
+                  settings.setAllowFileAccess(true);
+                  settings.setAllowContentAccess(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+                  settings.setBuiltInZoomControls(false);
+                  settings.setDisplayZoomControls(false);
+                  settings.setSupportZoom(false);
+
+                  webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+                  webView.setBackgroundColor(0xFF0B0B0B);
+                  webView.loadUrl("file:///android_asset/index.html");
+
+                  setContentView(webView);
+              }
+
+              private void hideSystemUi() {
+                  getWindow().getDecorView().setSystemUiVisibility(
+                      View.SYSTEM_UI_FLAG_FULLSCREEN
+                          | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                          | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                          | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                          | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                          | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                  );
+              }
+
+              @Override
+              public void onWindowFocusChanged(boolean hasFocus) {
+                  super.onWindowFocusChanged(hasFocus);
+                  if (hasFocus) {
+                      hideSystemUi();
+                  }
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (webView != null) {
+                      webView.destroy();
+                  }
+                  super.onDestroy();
+              }
+          }
+          EOF
+
+          echo "Android project created in $BUILD_DIR"
 
       - name: Build APK and AAB
         run: |
-          cd "${{ steps.project.outputs.dir }}"
-          gradle --no-daemon :app:assembleDebug :app:bundleDebug
+          gradle --no-daemon \
+            -p "$GITHUB_WORKSPACE/.android-build" \
+            :app:assembleDebug \
+            :app:bundleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: schemer-apk
-          path: ${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/*.apk
+          path: .android-build/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: schemer-aab
-          path: ${{ steps.project.outputs.dir }}/app/build/outputs/bundle/debug/*.aab
+          path: .android-build/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
