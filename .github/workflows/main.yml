@@ -30,10 +30,10 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Set up Gradle 9.8
+      - name: Set up Gradle 9.8.0
         uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: "9.8"
+          gradle-version: "9.8.0"
           cache-provider: enhanced
           cache-disabled: false
           cache-read-only: false
@@ -77,11 +77,6 @@ jobs:
           mkdir -p \
             "$BUILD_DIR/app/src/main/assets" \
             "$BUILD_DIR/app/src/main/java/com/egon/schemer" \
-            "$BUILD_DIR/app/src/main/res/mipmap-hdpi" \
-            "$BUILD_DIR/app/src/main/res/mipmap-mdpi" \
-            "$BUILD_DIR/app/src/main/res/mipmap-xhdpi" \
-            "$BUILD_DIR/app/src/main/res/mipmap-xxhdpi" \
-            "$BUILD_DIR/app/src/main/res/mipmap-xxxhdpi" \
             "$BUILD_DIR/app/src/main/res/values"
 
           cp "$HTML_FILE" "$BUILD_DIR/app/src/main/assets/index.html"
@@ -156,6 +151,17 @@ jobs:
           </resources>
           EOF
 
+          cat > "$BUILD_DIR/app/src/main/res/values/styles.xml" <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:windowFullscreen">true</item>
+                  <item name="android:windowActionModeOverlay">true</item>
+                  <item name="android:colorAccent">#000000</item>
+              </style>
+          </resources>
+          EOF
+
           cat > "$BUILD_DIR/app/src/main/AndroidManifest.xml" <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -177,17 +183,6 @@ jobs:
                   </activity>
               </application>
           </manifest>
-          EOF
-
-          cat > "$BUILD_DIR/app/src/main/res/values/styles.xml" <<'EOF'
-          <resources>
-              <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-                  <item name="android:fontFamily">sans</item>
-                  <item name="android:windowFullscreen">true</item>
-                  <item name="android:windowActionModeOverlay">true</item>
-                  <item name="android:colorAccent">#000000</item>
-              </style>
-          </resources>
           EOF
 
           cat > "$BUILD_DIR/app/src/main/java/com/egon/schemer/MainActivity.java" <<'EOF'
@@ -267,8 +262,6 @@ jobs:
               }
           }
           EOF
-
-          echo "Android project created in $BUILD_DIR"
 
       - name: Build APK and AAB
         run: |
