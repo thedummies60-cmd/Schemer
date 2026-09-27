@@ -192,7 +192,7 @@ jobs:
           import android.content.pm.ActivityInfo;
           import android.os.Bundle;
           import android.view.View;
-          import android.view.Window;
+          import android.view.WindowManager;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
@@ -207,8 +207,8 @@ jobs:
                   setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
 
                   getWindow().setFlags(
-                      Window.LayoutParams.FLAG_FULLSCREEN,
-                      Window.LayoutParams.FLAG_FULLSCREEN
+                      WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                      WindowManager.LayoutParams.FLAG_FULLSCREEN
                   );
 
                   hideSystemUi();
